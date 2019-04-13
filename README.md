@@ -15,3 +15,7 @@ Then change to this repository and start a local webserver
     python -m "http.server" 1313
     
 Go to your browser and navigate to http://localhost:1313 .
+
+## License
+
+This code is licensed under the CC 4.0 license. The [d3-library](https://github.com/d3/d3) is licensed under the MIT license.
