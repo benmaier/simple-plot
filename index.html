@@ -1,0 +1,51 @@
+<meta charset="utf-8">
+<head>
+<script src="./libs/d3.v4.min.js"></script>
+<script src="./simple_plot.js"></script>
+</head>
+<body>
+    <div id="container" style="float:left;"></div>
+<script>
+var width = 500, height = 300;
+var canvas = d3.select('#container')
+          .append('canvas')
+          .attr('width', width)
+          .attr('height', height);
+canvas.style.width = width+"px";
+canvas.style.height = height+"px";
+
+var ctx = canvas.node().getContext('2d');
+ctx.scale(1,1);
+var pl = new simplePlot(ctx, width, height, {margin: 20, fontsize:12});
+
+if (window.devicePixelRatio){
+    canvas
+        .attr('width', width * window.devicePixelRatio)
+        .attr('height', height * window.devicePixelRatio)
+        .style('width', width + 'px')
+        .style('height', height + 'px');
+
+    ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+}
+
+var N = 10001;
+var x = d3.range(10,N).map(i => i/1000);
+var y = x.map(i => Math.sin(i));
+var x2 = d3.range(1,100).map(i => i/10);
+var y2 = x2.map(i => -Math.sin(i-1) + Math.random()/10);
+var y3 = x2.map(i => -Math.sin(i-2) + Math.random()/10);
+
+pl.plot('sin',x,y)
+pl.plot('cos',x,x.map(i => Math.cos(i) ),{linedash:[2,2,4],linecolor:'#f3c'});
+pl.scatter('noise',x2,y2,{marker:'s',markerradius:3,markeredgewidth:1,markercolor:'#fff',markeredgecolor:'#000'});
+pl.scatter('noise2',x2,y3,{marker:'o',markerradius:3,markeredgewidth:1,markercolor:'#1aa',markeredgecolor:'#000'});
+pl.legend();
+pl.xlim([0.1,10]);
+pl.ylim([-1,1]);
+pl.xlabel('x');
+pl.ylabel('y');
+</script>
+
+
+</body>
+
