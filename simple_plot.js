@@ -32,6 +32,11 @@ class simplePlot {
     this.yScaleType = config.yScaleType;
     this.fastScatter = config.fastScatter;
 
+    this.frame_left = true;
+    this.frame_bottom = true;
+    this.frame_right = true;
+    this.frame_top = true;
+
     if (this.xScaleType == 'log')
       this.xScale = d3.scaleLog().range([this.margin, this.w - this.margin]);
     else
@@ -41,6 +46,88 @@ class simplePlot {
       this.yScale = d3.scaleLog().range([this.h - this.margin, this.margin]);
     else
       this.yScale = d3.scaleLinear().range([this.h - this.margin, this.margin]);
+
+    let self = this;
+    this.ctx.canvas.onmousemove = function(e) { self.mousemove(self,e); };
+    this.ctx.canvas.onmouseout = function(e) { self.highlight_out_global(self); };
+
+    this.highlight = {
+        X: {
+          canv : null,
+          data : null,
+          show : false
+        },
+        Y: {
+          canv : null,
+          data : null,
+          show : false
+        }
+    };
+
+    this.cousin_plots = [];
+  }
+
+  add_cousin(other)
+  {
+    this.cousin_plots.push(other);
+    other.cousin_plots.push(this);
+  }
+
+  mousemove(self,e)
+  {
+    self.highlight.X.canv = e.offsetX;
+    self.highlight.Y.canv = e.offsetY;
+    self.highlight.X.data = self.xScale.invert(e.offsetX);
+    self.highlight.Y.data = self.yScale.invert(e.offsetY);
+
+    self.draw();
+    self.cousin_plots.forEach(other => other.set_highlight_from_data(
+                                            other,
+                                            self.highlight.X.data,
+                                            self.highlight.Y.data
+                                         )
+                             );
+  }
+
+  set_highlight_from_data(self,x,y)
+  {
+    self.highlight.X.data = x;
+    self.highlight.Y.data = y;
+    self.highlight.X.canv = self.xScale(x);
+    self.highlight.Y.canv = self.yScale(y);
+    self.draw();
+  }
+
+  highlight_out(self)
+  {
+    self.highlight.X.data = null;
+    self.highlight.Y.data = null;
+    self.highlight.X.canv = null;
+    self.highlight.Y.canv = null;
+    self.draw();
+  }
+
+  highlight_out_global(self)
+  {
+    self.highlight_out(self);
+    self.cousin_plots.forEach(other => other.highlight_out(other));
+  }
+
+  set_highlight(axes="XY")
+  {
+
+    let self = this;
+    let letters = axes.split("");
+
+    if (letters.includes("X") || letters.includes("x"))
+      self.highlight.X.show = true;
+    else
+      self.highlight.X.show = false;
+
+    if (letters.includes("Y") || letters.includes("y"))
+      self.highlight.Y.show = true;
+    else
+      self.highlight.Y.show = false;
   }
 
   scatter(label, x, y, user_config={})
@@ -230,6 +317,35 @@ class simplePlot {
     this.draw();
   }
 
+  frame(frame_pos="left bottom right top") {
+    let words = frame_pos.split(" ");
+    console.log(words);
+    console.log(words.includes("left"));
+    console.log(words.includes("top"));
+    if (words.includes("left")) {
+      this.frame_left = true;
+    } else {
+      this.frame_left = false;
+    }
+    if (words.includes("bottom")) {
+      this.frame_bottom = true;
+    } else {
+      this.frame_bottom = false;
+    }
+    if (words.includes("right")) {
+      this.frame_right = true;
+    } else {
+      this.frame_right = false;
+    }
+    if (words.includes("top")) {
+      this.frame_top = true;
+    } else {
+      this.frame_top = false;
+    }
+
+    this.draw();
+  }
+
   resize(width, height)
   {
     this.w = width;
@@ -251,6 +367,7 @@ class simplePlot {
     ctx.clearRect(0, 0, this.w, this.h);
     ctx.save()
     ctx.lineWidth = 0;
+    ctx.strokeStyle = '#fff';
     ctx.rect(mrgn, mrgn, this.w - 2 * mrgn, this.h - 2 * mrgn);
     ctx.stroke();
     ctx.clip();
@@ -346,7 +463,39 @@ class simplePlot {
     ctx.setLineDash([]);
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.rect(mrgn, mrgn, this.w - 2 * mrgn, this.h - 2 * mrgn);
+    if (this.frame_left && this.frame_bottom && this.frame_right && this.frame_top)
+    {
+      ctx.rect(mrgn, mrgn, this.w - 2 * mrgn, this.h - 2 * mrgn);
+    }
+    else{
+      ctx.moveTo(mrgn, mrgn);
+      if (this.frame_left) 
+        ctx.lineTo(mrgn, this.h-mrgn);
+      else
+      {
+        ctx.stroke()
+        ctx.moveTo(mrgn, this.h-mrgn);
+      }
+
+      if (this.frame_bottom) 
+        ctx.lineTo(this.w - mrgn, this.h-mrgn);
+      else
+      {
+        ctx.stroke()
+        ctx.moveTo(this.w - mrgn, this.h-mrgn);
+      }
+
+      if (this.frame_right) 
+        ctx.lineTo(this.w - mrgn, mrgn);
+      else
+      {
+        ctx.stroke()
+        ctx.moveTo(this.w - mrgn, mrgn);
+      }
+
+      if (this.frame_top) 
+        ctx.lineTo(mrgn, mrgn);
+    }
     ctx.stroke();
 
     let fsize = this.fsize;
@@ -406,6 +555,63 @@ class simplePlot {
       ctx.fillText(ymin, mrgn - 0.3 * fsize, (h - mrgn));
       ctx.textAlign = 'right';
       ctx.fillText(ymax, mrgn - 0.3 * fsize, mrgn + fsize);
+    }
+
+    if (this.highlight.X.show && this.highlight.X.data !== null &&
+        this.highlight.X.canv > mrgn && this.highlight.X.canv < w - mrgn)
+    {
+
+      ctx.save();
+      ctx.lineWidth = 1;
+      ctx.setLineDash([]);
+      ctx.strokeStyle = '#000';
+      ctx.moveTo(this.highlight.X.canv,mrgn);
+      ctx.lineTo(this.highlight.X.canv,h-mrgn);
+
+      ctx.stroke();
+
+      if (this.highlight.X.canv < w/2)
+        ctx.textAlign = 'left';
+      else
+        ctx.textAlign = 'right';
+      console.log(this.highlight.X.canv);
+      ctx.font = fsize.toString() + 'px Arial, Helvetica Neue, sans-serif';
+      ctx.fillText(
+                    this.stripZeros(d3.format('s')(this.highlight.X.data)),
+                    this.highlight.X.canv,
+                    mrgn - 0.2*fH
+                  );
+
+      ctx.restore();
+
+    }
+    if (this.highlight.Y.show && this.highlight.Y.data !== null &&
+        this.highlight.Y.canv > mrgn && this.highlight.Y.canv < h - mrgn
+       ) {
+
+      ctx.save();
+      ctx.lineWidth = 1;
+      ctx.setLineDash([]);
+      ctx.strokeStyle = '#000';
+      ctx.moveTo(mrgn,this.highlight.Y.canv);
+      ctx.lineTo(w-mrgn,this.highlight.Y.canv);
+      ctx.stroke();
+
+      if (this.highlight.Y.canv < h/2)
+        ctx.textAlign = 'right';
+      else
+        ctx.textAlign = 'left';
+      ctx.font = fsize.toString() + 'px Arial, Helvetica Neue, sans-serif';
+      ctx.translate(w - mrgn + fH, this.highlight.Y.canv);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText(
+                    this.stripZeros(d3.format('s')(this.highlight.Y.data)),
+                    0,0
+                  );
+
+      ctx.restore();
+
+
     }
 
     if (this.draw_legend) {
