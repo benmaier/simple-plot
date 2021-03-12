@@ -65,6 +65,9 @@ class simplePlot {
     };
 
     this.cousin_plots = [];
+
+    this.show_xticks = true;
+    this.show_yticks = true;
   }
 
   add_cousin(other)
@@ -312,6 +315,18 @@ class simplePlot {
     this.draw();
   }
 
+  xticklabels(on=true)
+  {
+    this.show_xticks = on;
+    this.draw();
+  }
+
+  yticklabels(on=true)
+  {
+    this.show_yticks = on;
+    this.draw();
+  }
+
   legend(on = true) {
     this.draw_legend = on;
     this.draw();
@@ -319,9 +334,6 @@ class simplePlot {
 
   frame(frame_pos="left bottom right top") {
     let words = frame_pos.split(" ");
-    console.log(words);
-    console.log(words.includes("left"));
-    console.log(words.includes("top"));
     if (words.includes("left")) {
       this.frame_left = true;
     } else {
@@ -520,7 +532,7 @@ class simplePlot {
       ctx.restore();
     }
 
-    if (this.range_x !== null) {
+    if (this.range_x !== null && this.show_xticks) {
       let xmin,
         xmax;
       if ((this.xlim_labels) === null) {
@@ -540,7 +552,7 @@ class simplePlot {
       ctx.fillText(xmax, w - mrgn, (h - mrgn) + fsize);
     }
 
-    if (this.range_y !== null) {
+    if (this.range_y !== null && this.show_yticks) {
       let ymin,
         ymax;
       if ((this.ylim_labels) === null) {
