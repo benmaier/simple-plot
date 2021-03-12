@@ -574,7 +574,6 @@ class simplePlot {
         ctx.textAlign = 'left';
       else
         ctx.textAlign = 'right';
-      console.log(this.highlight.X.canv);
       ctx.font = fsize.toString() + 'px Arial, Helvetica Neue, sans-serif';
       ctx.fillText(
                     this.stripZeros(d3.format('s')(this.highlight.X.data)),
