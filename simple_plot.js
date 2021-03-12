@@ -458,6 +458,8 @@ class simplePlot {
     }
 
     ctx.restore()
+
+
     // ========== DRAW FRAME AND LABELS =========
     ctx.strokeStyle = '#000';
     ctx.setLineDash([]);
@@ -564,11 +566,12 @@ class simplePlot {
       ctx.save();
       ctx.lineWidth = 1;
       ctx.setLineDash([]);
-      ctx.strokeStyle = '#000';
+      ctx.strokeStyle = '#888';
+      ctx.beginPath();
       ctx.moveTo(this.highlight.X.canv,mrgn);
       ctx.lineTo(this.highlight.X.canv,h-mrgn);
-
       ctx.stroke();
+      ctx.strokeStyle = '#000';
 
       if (this.highlight.X.canv < w/2)
         ctx.textAlign = 'left';
@@ -591,10 +594,12 @@ class simplePlot {
       ctx.save();
       ctx.lineWidth = 1;
       ctx.setLineDash([]);
-      ctx.strokeStyle = '#000';
+      ctx.strokeStyle = '#888';
+      ctx.beginPath();
       ctx.moveTo(mrgn,this.highlight.Y.canv);
       ctx.lineTo(w-mrgn,this.highlight.Y.canv);
       ctx.stroke();
+      ctx.strokeStyle = '#000';
 
       if (this.highlight.Y.canv < h/2)
         ctx.textAlign = 'right';
