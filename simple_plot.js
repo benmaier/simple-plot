@@ -473,44 +473,82 @@ class simplePlot {
 
 
     // ========== DRAW FRAME AND LABELS =========
+    //ctx.save()
     ctx.strokeStyle = '#000';
     ctx.setLineDash([]);
     ctx.lineWidth = 1;
-    ctx.beginPath();
     if (this.frame_left && this.frame_bottom && this.frame_right && this.frame_top)
     {
+      ctx.beginPath();
       ctx.rect(mrgn, mrgn, this.w - 2 * mrgn, this.h - 2 * mrgn);
+      ctx.stroke();
     }
     else{
-      ctx.moveTo(mrgn, mrgn);
+      let path_active = false;
+
       if (this.frame_left) 
+      {  
+        ctx.beginPath();
+        path_active = true;
+        ctx.moveTo(mrgn, mrgn);
         ctx.lineTo(mrgn, this.h-mrgn);
-      else
-      {
-        ctx.stroke()
-        ctx.moveTo(mrgn, this.h-mrgn);
+        if (! this.frame_bottom)
+        {
+          ctx.stroke();
+          path_active = false;
+        }
       }
 
       if (this.frame_bottom) 
-        ctx.lineTo(this.w - mrgn, this.h-mrgn);
-      else
       {
-        ctx.stroke()
-        ctx.moveTo(this.w - mrgn, this.h-mrgn);
+        if (!path_active)
+        {
+          ctx.beginPath();
+          ctx.moveTo(mrgn, this.h-mrgn);
+          path_active = true;
+        }
+        ctx.lineTo(this.w - mrgn, this.h-mrgn);
+        if (! this.frame_right)
+        {
+          ctx.stroke();
+          path_active = false;
+        }
       }
 
       if (this.frame_right) 
-        ctx.lineTo(this.w - mrgn, mrgn);
-      else
       {
-        ctx.stroke()
-        ctx.moveTo(this.w - mrgn, mrgn);
+        if (!path_active)
+        {
+          ctx.beginPath();
+          ctx.moveTo(this.w - mrgn, this.h-mrgn);
+          path_active = true;
+        }
+        ctx.lineTo(this.w - mrgn, mrgn);
+
+        if (! this.frame_top)
+        {
+          ctx.stroke();
+          path_active = false;
+        }
       }
 
       if (this.frame_top) 
+      {
+        if (! path_active)
+        {
+          ctx.beginPath();
+          ctx.moveTo(this.w - mrgn, mrgn);
+        }
         ctx.lineTo(mrgn, mrgn);
+        ctx.stroke();
+        path_active = false;
+      }
+
+      if (path_active)
+        ctx.stroke();
     }
     ctx.stroke();
+    //ctx.restore();
 
     let fsize = this.fsize;
     ctx.textAlign = 'center';
@@ -571,11 +609,11 @@ class simplePlot {
       ctx.fillText(ymax, mrgn - 0.3 * fsize, mrgn + fsize);
     }
 
-    if (this.highlight.X.show && this.highlight.X.data !== null &&
-        this.highlight.X.canv > mrgn && this.highlight.X.canv < w - mrgn)
+    if ((this.highlight.X.show) && (this.highlight.X.data !== null) &&
+        (this.highlight.X.canv > mrgn) && (this.highlight.X.canv < w - mrgn))
     {
 
-      ctx.save();
+      //ctx.save();
       ctx.lineWidth = 1;
       ctx.setLineDash([]);
       ctx.strokeStyle = '#888';
@@ -596,7 +634,7 @@ class simplePlot {
                     mrgn - 0.2*fH
                   );
 
-      ctx.restore();
+      //ctx.restore();
 
     }
     if (this.highlight.Y.show && this.highlight.Y.data !== null &&
