@@ -16,7 +16,7 @@ var canvas = d3.select('#container')
 
 var ctx = canvas.node().getContext('2d');
 ctx.scale(1,1);
-var pl = new simplePlot(ctx, width, height, {margin: 20, fontsize:12});
+var pl = new simplePlot(ctx, width, height, {margin: 20, fontsize:12, allow_zoom_y:false});
 
 if (window.devicePixelRatio){
     canvas

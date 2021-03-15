@@ -7,7 +7,9 @@ class simplePlot {
       xScaleType: 'lin',
       yScaleType: 'lin',
       fastScatter: false,
-      format_string: '.3s'
+      format_string: '.3s',
+      allow_zoom_x: true,
+      allow_zoom_y: true
     }
 
     Reflect.ownKeys(user_config).forEach(function(key){
@@ -40,6 +42,13 @@ class simplePlot {
     this.frame_right = true;
     this.frame_top = true;
 
+    this.allow_zoom_x = config.allow_zoom_x;
+    this.allow_zoom_y = config.allow_zoom_y;
+
+    this.range_stack_x = [this.range_x];
+    this.range_stack_y = [this.range_y];
+    this.range_stack_i = 0;
+
     if (this.xScaleType == 'log')
       this.xScale = d3.scaleLog().range([this.margin, this.w - this.margin]);
     else
@@ -53,6 +62,9 @@ class simplePlot {
     let self = this;
     this.ctx.canvas.onmousemove = function(e) { self.mousemove(self,e); };
     this.ctx.canvas.onmouseout = function(e) { self.highlight_out_global(self); };
+    this.ctx.canvas.onmousedown = function(e) { self.mousedown(self,e); };
+    this.ctx.canvas.onmouseup = function(e) { self.mouseup(self,e); };
+    this.ctx.canvas.ondblclick = function(e) { self.double_click(self,e); };
 
     this.highlight = {
         X: {
@@ -66,6 +78,23 @@ class simplePlot {
           show : false
         }
     };
+
+    this.is_dragging = false;
+
+    this.cursordown = { 
+                       X: 
+                         {
+                            canv: null,
+                            data: null
+                         },
+                       Y: 
+                         {
+                            canv: null,
+                            data: null
+                         }
+                    }
+
+    this.cursorup = JSON.parse(JSON.stringify(this.cursordown));
 
     this.cousin_plots = [];
 
@@ -110,6 +139,7 @@ class simplePlot {
     self.highlight.Y.data = null;
     self.highlight.X.canv = null;
     self.highlight.Y.canv = null;
+    self.is_dragging = false;
     self.draw();
   }
 
@@ -134,6 +164,70 @@ class simplePlot {
       self.highlight.Y.show = true;
     else
       self.highlight.Y.show = false;
+  }
+
+  mousedown(self,e)
+  {
+    let mrgn = this.margin;
+    let w = this.w;
+    let h = this.h;
+    //console.log(e.offsetX,w);
+    //console.log(e.offsetY,h);
+    //console.log(e.offsetX > mrgn, e.offsetX < (w - mrgn), e.offsetY < (h - mrgn), e.offsetY > mrgn)
+    if (e.offsetX > mrgn && e.offsetX < w - mrgn && e.offsetY < h - mrgn && e.offsetY > mrgn)
+    {
+      self.is_dragging = true;
+      self.cursordown.X.canv = e.offsetX;
+      self.cursordown.Y.canv = e.offsetY;
+      self.cursordown.X.data = self.xScale.invert(e.offsetX);
+      self.cursordown.Y.data = self.yScale.invert(e.offsetY);
+      //console.log("mousedown",e);
+    }
+
+  }
+
+  mouseup(self,e)
+  {
+    let mrgn = this.margin;
+    let w = this.w;
+    let h = this.h;
+    if (self.is_dragging)
+    {
+      self.is_dragging = false;
+
+      self.cursorup.X.canv = e.offsetX;
+      self.cursorup.Y.canv = e.offsetY;
+      self.cursorup.X.data = self.xScale.invert(e.offsetX);
+      self.cursorup.Y.data = self.yScale.invert(e.offsetY);
+
+        let y0, y1, x0, x1, ymin, ymax, xmin, xmax;
+        if (this.allow_zoom_y)
+        {
+          y0 = this.cursordown.Y.data;
+          y1 = this.cursorup.Y.data;
+          ymin = d3.min([y0,y1]);
+          ymax = d3.max([y0,y1]);
+          ymin = d3.max([ymin,self.range_y[0]]);
+          ymax = d3.min([ymax,self.range_y[1]]);
+          if (ymin != ymax)
+            self.ylim([ymin,ymax]);
+        }
+
+        if (this.allow_zoom_x)
+        {
+          x0 = this.cursordown.X.data;
+          x1 = this.cursorup.X.data;
+          xmin = d3.min([x0,x1]);
+          xmax = d3.max([x0,x1]);
+          xmin = d3.max([xmin,self.range_x[0]]);
+          xmax = d3.min([xmax,self.range_x[1]]);
+          if (xmin != xmax)
+            self.xlim([xmin,xmax]);
+        }
+
+        
+    }
+    //console.log("mouseup",e);
   }
 
   scatter(label, x, y, user_config={})
@@ -253,17 +347,95 @@ class simplePlot {
   xlim(rX) {
     if (!arguments.length) return this.range_x;
 
-    this.range_x = rX;
-    this.xScale.domain(rX);
-    this.draw();
+    if (this.range_x === null || rX[0] != this.range_x[0] || rX[1] != this.range_x[1])
+    {
+      this.range_x = rX;
+      this.xScale.domain(rX);
+
+      if (this.range_y !== null && this.range_stack_i < this.range_y.length-1)
+      {
+        this.range_stack_x = this.range_stack_x.slice(0,this.range_stack_i+1);
+        this.range_stack_y = this.range_stack_y.slice(0,this.range_stack_i+1);
+      }
+
+      if (this.range_x !== null)
+        this.range_stack_x.push(this.range_x.slice());
+      else
+        this.range_stack_x.push(null);
+      if (this.range_y !== null)
+        this.range_stack_y.push(this.range_y.slice());
+      else
+        this.range_stack_y.push(null);
+
+      this.range_stack_i++;
+
+      this.draw();
+    }
   }
 
   ylim(rY) {
     if (!arguments.length) return this.range_y;
 
+    if (this.range_y === null || rY[0] != this.range_y[0] || rY[1] != this.range_y[1])
+    {
+      this.range_y = rY;
+      this.yScale.domain(rY);
+
+      if (this.range_x !== null || this.range_stack_i < this.range_y.length-1)
+      {
+        this.range_stack_x = this.range_stack_x.slice(0,this.range_stack_i+1);
+        this.range_stack_y = this.range_stack_y.slice(0,this.range_stack_i+1);
+      }
+
+      if (this.range_x !== null)
+        this.range_stack_x.push(this.range_x.slice());
+      else
+        this.range_stack_x.push(null);
+      if (this.range_y !== null)
+        this.range_stack_y.push(this.range_y.slice());
+      else
+        this.range_stack_y.push(null);
+
+      this.range_stack_i++;
+    }
+
+    this.draw();
+  }
+
+  double_click(self,e) {
+
+    let w = self.w;
+    let direction;
+
+    if (e.offsetX < w/2)
+    {
+      direction = -1;
+      if (self.range_stack_i == 0 || 
+          self.range_stack_x[self.range_stack_i+direction] === null ||
+          self.range_stack_y[self.range_stack_i+direction] === null
+         )
+        return;
+    }
+    else
+    {
+      direction = +1;
+      if (self.range_stack_i == self.range_stack_x.length-1)
+        return;
+    }
+
+    console.log(self.range_stack_i,e);
+
+    self.range_stack_i = self.range_stack_i + direction;  
+    let rX = self.range_stack_x[self.range_stack_i];
+    let rY = self.range_stack_y[self.range_stack_i];
+
+    this.range_x = rX;
+    this.xScale.domain(rX);
     this.range_y = rY;
     this.yScale.domain(rY);
+
     this.draw();
+
   }
 
   xlabel(xl) {
@@ -567,7 +739,7 @@ class simplePlot {
         (this.highlight.X.canv > mrgn) && (this.highlight.X.canv < w - mrgn))
     {
 
-      //ctx.save();
+      ctx.save();
       ctx.lineWidth = 1;
       ctx.setLineDash([]);
       ctx.strokeStyle = '#888';
@@ -588,7 +760,7 @@ class simplePlot {
                     mrgn - 0.2*fH
                   );
 
-      //ctx.restore();
+      ctx.restore();
 
     }
     if (this.highlight.Y.show && this.highlight.Y.data !== null &&
@@ -620,6 +792,41 @@ class simplePlot {
       ctx.restore();
 
 
+    }
+
+    if (this.is_dragging) {
+      let y0, y1, x0, x1, ymin, ymax, xmin, xmax;
+      if (this.allow_zoom_y)
+      {
+        y0 = this.cursordown.Y.canv;
+        y1 = this.highlight.Y.canv;
+      }
+      else
+      {
+        y0 = mrgn;
+        y1 = h-mrgn;
+      }
+      ymin = d3.min([y0,y1]);
+      ymax = d3.max([y0,y1]);
+      ymin = d3.max([ymin,mrgn]);
+      ymax = d3.min([ymax,h-mrgn]);
+      if (this.allow_zoom_x)
+      {
+        x0 = this.cursordown.X.canv;
+        x1 = this.highlight.X.canv;
+      }
+      else
+      {
+        x0 = mrgn;
+        x1 = w-mrgn;
+      }
+      xmin = d3.min([x0,x1]);
+      xmax = d3.max([x0,x1]);
+      xmin = d3.max([xmin,mrgn]);
+      xmax = d3.min([xmax,w-mrgn]);
+      ctx.fillStyle = "rgba(0,0,0,0.1)";
+      ctx.rect(xmin, ymin, xmax-xmin, ymax-ymin);
+      ctx.fill();
     }
 
     if (this.draw_legend) {
@@ -695,11 +902,11 @@ class simplePlot {
 
     s = this.format(s);
 
-    let k = "";
+    let last = "";
 
     if (!("0123456789".includes(s[s.length-1])))
     {
-      k = s[s.length-1];
+      last = s[s.length-1];
       s = s.slice(0, s.length - 1);
     }
 
@@ -715,7 +922,7 @@ class simplePlot {
 
     }
 
-    s = s + k;
+    s = s + last;
 
     return s;
   }
