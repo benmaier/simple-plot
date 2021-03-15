@@ -6,7 +6,8 @@ class simplePlot {
       fontsize: 12,
       xScaleType: 'lin',
       yScaleType: 'lin',
-      fastScatter: false
+      fastScatter: false,
+      format_string: '.3s'
     }
 
     Reflect.ownKeys(user_config).forEach(function(key){
@@ -31,6 +32,8 @@ class simplePlot {
     this.xScaleType = config.xScaleType;
     this.yScaleType = config.yScaleType;
     this.fastScatter = config.fastScatter;
+    this.format_string = config.format_string;
+    this.format = d3.format(config.format_string);
 
     this.frame_left = true;
     this.frame_bottom = true;
@@ -474,81 +477,32 @@ class simplePlot {
 
     // ========== DRAW FRAME AND LABELS =========
     //ctx.save()
-    ctx.strokeStyle = '#000';
-    ctx.setLineDash([]);
-    ctx.lineWidth = 1;
-    if (this.frame_left && this.frame_bottom && this.frame_right && this.frame_top)
-    {
-      ctx.beginPath();
-      ctx.rect(mrgn, mrgn, this.w - 2 * mrgn, this.h - 2 * mrgn);
-      ctx.stroke();
+    let this_dash = [];
+    let segment_on = [this.frame_top,this.frame_right,this.frame_bottom,this.frame_left].map( on => on ? 1 : 0);
+    let current_segment_length = 0;
+    let last_segment_on = 1;
+    let L = [w-2*mrgn,h-2*mrgn,w-2*mrgn,h-2*mrgn];
+    for (let i=0; i<4; i++) {
+      if (segment_on[i] != last_segment_on) {
+        this_dash.push(current_segment_length)
+        current_segment_length = 0;
+      }
+      current_segment_length += L[i]; 
+      last_segment_on = segment_on[i];
     }
-    else{
-      let path_active = false;
-
-      if (this.frame_left) 
-      {  
-        ctx.beginPath();
-        path_active = true;
-        ctx.moveTo(mrgn, mrgn);
-        ctx.lineTo(mrgn, this.h-mrgn);
-        if (! this.frame_bottom)
-        {
-          ctx.stroke();
-          path_active = false;
-        }
-      }
-
-      if (this.frame_bottom) 
-      {
-        if (!path_active)
-        {
-          ctx.beginPath();
-          ctx.moveTo(mrgn, this.h-mrgn);
-          path_active = true;
-        }
-        ctx.lineTo(this.w - mrgn, this.h-mrgn);
-        if (! this.frame_right)
-        {
-          ctx.stroke();
-          path_active = false;
-        }
-      }
-
-      if (this.frame_right) 
-      {
-        if (!path_active)
-        {
-          ctx.beginPath();
-          ctx.moveTo(this.w - mrgn, this.h-mrgn);
-          path_active = true;
-        }
-        ctx.lineTo(this.w - mrgn, mrgn);
-
-        if (! this.frame_top)
-        {
-          ctx.stroke();
-          path_active = false;
-        }
-      }
-
-      if (this.frame_top) 
-      {
-        if (! path_active)
-        {
-          ctx.beginPath();
-          ctx.moveTo(this.w - mrgn, mrgn);
-        }
-        ctx.lineTo(mrgn, mrgn);
-        ctx.stroke();
-        path_active = false;
-      }
-
-      if (path_active)
-        ctx.stroke();
-    }
-    ctx.stroke();
+    if (current_segment_length > 0)
+      this_dash.push(current_segment_length);
+    if (this_dash[0] == 0)
+      this_dash.push(0);
+    if (this_dash.length > 1)
+      ctx.setLineDash(this_dash);
     //ctx.restore();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#000';
+    ctx.beginPath();
+    ctx.rect(mrgn, mrgn, this.w - 2 * mrgn, this.h - 2 * mrgn);
+    ctx.stroke();
+    ctx.setLineDash([]);
 
     let fsize = this.fsize;
     ctx.textAlign = 'center';
@@ -574,8 +528,8 @@ class simplePlot {
       let xmin,
         xmax;
       if ((this.xlim_labels) === null) {
-        xmin = this.stripZeros(d3.format('s')(this.range_x[0]));
-        xmax = this.stripZeros(d3.format('s')(this.range_x[1]));
+        xmin = this.stripZeros(this.range_x[0]);
+        xmax = this.stripZeros(this.range_x[1]);
       }
       else {
         xmin = this.xlim_labels[0];
@@ -594,8 +548,8 @@ class simplePlot {
       let ymin,
         ymax;
       if ((this.ylim_labels) === null) {
-        ymin = this.stripZeros(d3.format('s')(this.range_y[0]));
-        ymax = this.stripZeros(d3.format('s')(this.range_y[1]));
+        ymin = this.stripZeros(this.range_y[0]);
+        ymax = this.stripZeros(this.range_y[1]);
       }
       else {
         ymin = this.ylim_labels[0];
@@ -629,7 +583,7 @@ class simplePlot {
         ctx.textAlign = 'right';
       ctx.font = fsize.toString() + 'px Arial, Helvetica Neue, sans-serif';
       ctx.fillText(
-                    this.stripZeros(d3.format('s')(this.highlight.X.data)),
+                    this.stripZeros(this.highlight.X.data),
                     this.highlight.X.canv,
                     mrgn - 0.2*fH
                   );
@@ -659,7 +613,7 @@ class simplePlot {
       ctx.translate(w - mrgn + fH, this.highlight.Y.canv);
       ctx.rotate(-Math.PI / 2);
       ctx.fillText(
-                    this.stripZeros(d3.format('s')(this.highlight.Y.data)),
+                    this.stripZeros(this.highlight.Y.data),
                     0,0
                   );
 
@@ -738,11 +692,31 @@ class simplePlot {
   }
 
   stripZeros(s) {
-    while (s[s.length - 1] == '0') {
+
+    s = this.format(s);
+
+    let k = "";
+
+    if (!("0123456789".includes(s[s.length-1])))
+    {
+      k = s[s.length-1];
       s = s.slice(0, s.length - 1);
     }
-    if (s[s.length - 1] == '.')
-      s = s.slice(0, s.length - 1);
+
+    if (s.includes("."))
+    {
+
+      while (s[s.length - 1] == '0') {
+        s = s.slice(0, s.length - 1);
+      }
+
+      if (s[s.length - 1] == '.')
+        s = s.slice(0, s.length - 1);
+
+    }
+
+    s = s + k;
+
     return s;
   }
 }
