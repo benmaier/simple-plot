@@ -234,41 +234,76 @@ class simplePlot {
     {
         // check if the range stack is still in init mode and save the current view if yes
         is_first_zoom = self.try_saving_initial_range(self);
+      /*
         if (self.allow_zoom_y)
           self.ylim([ymin,ymax]);
         if (self.allow_zoom_x)
           self.xlim([xmin,xmax]);
+          */
+      let duration = 200;
+      let ease = d3.easeCubicInOut;
+      let time = d3.scaleLinear().domain([0,duration]).range([0,1]);
+      let _xmin = d3.scaleLinear().domain([0,1]).range([self.range_x[0],xmin]);
+      let _xmax = d3.scaleLinear().domain([0,1]).range([self.range_x[1],xmax]);
+      let _ymin = d3.scaleLinear().domain([0,1]).range([self.range_y[0],ymin]);
+      let _ymax = d3.scaleLinear().domain([0,1]).range([self.range_y[1],ymax]);
+
+      let t = d3.timer(function (elapsed) {
+        if (elapsed > duration)
+          elapsed = duration;
+        let r = ease(time(elapsed));
+        xmin = _xmin(r);
+        ymin = _ymin(r);
+        xmax = _xmax(r);
+        ymax = _ymax(r);
+        if (self.allow_zoom_y)
+        {
+          self.range_y = [ymin, ymax];
+          self.yScale.domain(self.range_y);
+        }
+        if (self.allow_zoom_x)
+        {
+          self.range_x = [xmin, xmax];
+          self.xScale.domain(self.range_x);
+        }
+        self.draw();
+        if (elapsed == duration)
+        {          
+          t.stop();
+
+          // if anything actually changed
+          if ((self.allow_zoom_x && xmin != xmax) || (self.allow_zoom_y && ymin != ymax))
+          {
+
+            if (self.range_y !== null && self.range_stack_i < self.range_y.length-1)
+            {
+              self.range_stack_x = self.range_stack_x.slice(0,self.range_stack_i+1);
+              self.range_stack_y = self.range_stack_y.slice(0,self.range_stack_i+1);
+            }
+
+            if (self.range_x !== null)
+              self.range_stack_x.push(self.range_x.slice());
+            else
+              self.range_stack_x.push(null);
+
+            if (self.range_y !== null)
+              self.range_stack_y.push(self.range_y.slice());
+            else
+              self.range_stack_y.push(null);
+
+            self.range_stack_i++;
+
+            if (is_first_zoom && self.show_zoom_helpers)
+            {
+              self.blink(self,-1);
+            }
+            ++self.number_of_outzooms;
+          }
+        }
+      });
 
     }
 
-    // if anything actually changed
-    if ((self.allow_zoom_x && xmin != xmax) || (self.allow_zoom_y && ymin != ymax))
-    {
-
-      if (self.range_y !== null && self.range_stack_i < self.range_y.length-1)
-      {
-        self.range_stack_x = self.range_stack_x.slice(0,self.range_stack_i+1);
-        self.range_stack_y = self.range_stack_y.slice(0,self.range_stack_i+1);
-      }
-
-      if (self.range_x !== null)
-        self.range_stack_x.push(this.range_x.slice());
-      else
-        self.range_stack_x.push(null);
-
-      if (self.range_y !== null)
-        self.range_stack_y.push(this.range_y.slice());
-      else
-        self.range_stack_y.push(null);
-
-      self.range_stack_i++;
-
-      if (is_first_zoom && self.show_zoom_helpers)
-      {
-        self.blink(self,-1);
-      }
-      ++self.number_of_outzooms;
-    }
 
   }
 
