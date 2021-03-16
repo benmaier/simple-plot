@@ -9,7 +9,8 @@ class simplePlot {
       fastScatter: false,
       format_string: '.3s',
       allow_zoom_x: true,
-      allow_zoom_y: true
+      allow_zoom_y: true,
+      show_zoom_helpers:true
     }
 
     Reflect.ownKeys(user_config).forEach(function(key){
@@ -44,6 +45,8 @@ class simplePlot {
 
     this.allow_zoom_x = config.allow_zoom_x;
     this.allow_zoom_y = config.allow_zoom_y;
+    this.show_zoom_helpers = config.show_zoom_helpers;
+    this.number_of_outzooms = 0;
 
     this.range_stack_x = [this.range_x];
     this.range_stack_y = [this.range_y];
@@ -171,9 +174,7 @@ class simplePlot {
     let mrgn = this.margin;
     let w = this.w;
     let h = this.h;
-    //console.log(e.offsetX,w);
-    //console.log(e.offsetY,h);
-    //console.log(e.offsetX > mrgn, e.offsetX < (w - mrgn), e.offsetY < (h - mrgn), e.offsetY > mrgn)
+
     if (e.offsetX > mrgn && e.offsetX < w - mrgn && e.offsetY < h - mrgn && e.offsetY > mrgn)
     {
       self.is_dragging = true;
@@ -181,7 +182,6 @@ class simplePlot {
       self.cursordown.Y.canv = e.offsetY;
       self.cursordown.X.data = self.xScale.invert(e.offsetX);
       self.cursordown.Y.data = self.yScale.invert(e.offsetY);
-      //console.log("mousedown",e);
     }
 
   }
@@ -191,6 +191,7 @@ class simplePlot {
     let mrgn = this.margin;
     let w = this.w;
     let h = this.h;
+
     if (self.is_dragging)
     {
       self.is_dragging = false;
@@ -199,35 +200,126 @@ class simplePlot {
       self.cursorup.Y.canv = e.offsetY;
       self.cursorup.X.data = self.xScale.invert(e.offsetX);
       self.cursorup.Y.data = self.yScale.invert(e.offsetY);
-
-        let y0, y1, x0, x1, ymin, ymax, xmin, xmax;
-        if (this.allow_zoom_y)
-        {
-          y0 = this.cursordown.Y.data;
-          y1 = this.cursorup.Y.data;
-          ymin = d3.min([y0,y1]);
-          ymax = d3.max([y0,y1]);
-          ymin = d3.max([ymin,self.range_y[0]]);
-          ymax = d3.min([ymax,self.range_y[1]]);
-          if (ymin != ymax)
-            self.ylim([ymin,ymax]);
-        }
-
-        if (this.allow_zoom_x)
-        {
-          x0 = this.cursordown.X.data;
-          x1 = this.cursorup.X.data;
-          xmin = d3.min([x0,x1]);
-          xmax = d3.max([x0,x1]);
-          xmin = d3.max([xmin,self.range_x[0]]);
-          xmax = d3.min([xmax,self.range_x[1]]);
-          if (xmin != xmax)
-            self.xlim([xmin,xmax]);
-        }
-
-        
+      self.manual_zoom(self);
     }
     //console.log("mouseup",e);
+  }
+
+  manual_zoom(self)
+  {
+    let y0, y1, x0, x1, ymin, ymax, xmin, xmax;
+    if (self.allow_zoom_y)
+    {
+      y0 = self.cursordown.Y.data;
+      y1 = self.cursorup.Y.data;
+      ymin = d3.min([y0,y1]);
+      ymax = d3.max([y0,y1]);
+      ymin = d3.max([ymin,self.range_y[0]]);
+      ymax = d3.min([ymax,self.range_y[1]]);
+    }
+
+    if (self.allow_zoom_x)
+    {
+      x0 = self.cursordown.X.data;
+      x1 = self.cursorup.X.data;
+      xmin = d3.min([x0,x1]);
+      xmax = d3.max([x0,x1]);
+      xmin = d3.max([xmin,self.range_x[0]]);
+      xmax = d3.min([xmax,self.range_x[1]]);
+    }
+
+    let is_first_zoom = false;
+
+    if ((ymin != ymax) || (xmin != xmax))
+    {
+        // check if the range stack is still in init mode and save the current view if yes
+        is_first_zoom = self.try_saving_initial_range(self);
+        if (self.allow_zoom_y)
+          self.ylim([ymin,ymax]);
+        if (self.allow_zoom_x)
+          self.xlim([xmin,xmax]);
+
+    }
+
+    // if anything actually changed
+    if ((self.allow_zoom_x && xmin != xmax) || (self.allow_zoom_y && ymin != ymax))
+    {
+
+      if (self.range_y !== null && self.range_stack_i < self.range_y.length-1)
+      {
+        self.range_stack_x = self.range_stack_x.slice(0,self.range_stack_i+1);
+        self.range_stack_y = self.range_stack_y.slice(0,self.range_stack_i+1);
+      }
+
+      if (self.range_x !== null)
+        self.range_stack_x.push(this.range_x.slice());
+      else
+        self.range_stack_x.push(null);
+
+      if (self.range_y !== null)
+        self.range_stack_y.push(this.range_y.slice());
+      else
+        self.range_stack_y.push(null);
+
+      self.range_stack_i++;
+
+      if (is_first_zoom && self.show_zoom_helpers)
+      {
+        self.blink(self,-1);
+      }
+      ++self.number_of_outzooms;
+    }
+
+  }
+
+  blink(self,direction)
+  {
+    let factor;
+    if (direction == -1)
+      factor = 1;
+    else
+      factor = 3;
+    let rX = self.range_x;
+    let rY = self.range_y;
+    let w = self.w;
+    let m = self.margin;
+    let h = self.h;
+    let x = factor * (rX[1] - rX[0]) / 4 + rX[0];
+    let y = (rY[1] - rY[0]) / 2 + rY[0];
+    let r = (h - 2*self.margin) / 10;
+
+    let blink_count = 0;
+    let t = d3.interval(function(elapsed) {
+        if (blink_count > 2)
+          t.stop();
+
+        if (blink_count % 2 == 0)
+        {
+          self.scatter('__tap__',[x],[y],{
+                  markercolor: 'rgba(0,0,0,0.2)',
+                  markeredgewidth: 0,
+                  markerradius : r,
+                  show_in_legend : false
+          });
+        }
+        else
+        {
+          delete self.scatterData['__tap__'];
+        }
+        self.draw();
+        ++blink_count;
+      }, 100);
+  }
+
+  try_saving_initial_range(self)
+  {
+    if (self.range_stack_i == 0 && self.range_stack_x.length == 1 && self.range_x !== null)
+    {
+      self.range_stack_x[0] = [ self.range_x[0], self.range_x[1] ];
+      self.range_stack_y[0] = [ self.range_y[0], self.range_y[1] ];
+
+      return true;
+    }
   }
 
   scatter(label, x, y, user_config={})
@@ -237,7 +329,8 @@ class simplePlot {
       markercolor: '#000', 
       markerradius: 1, 
       markeredgewidth: 0, 
-      markeredgecolor: 'rgba(0,0,0,0)'
+      markeredgecolor: 'rgba(0,0,0,0)',
+      show_in_legend: true
     }
 
     Reflect.ownKeys(user_config).forEach(function(key){
@@ -251,6 +344,7 @@ class simplePlot {
       this.scatterData[label].markerradius = config.markerradius;
       this.scatterData[label].markeredgewidth = config.markeredgewidth;
       this.scatterData[label].markeredgecolor = config.markeredgecolor;
+      this.scatterData[label].show_in_legend = config.show_in_legend;
     }
 
     this.scatterData[label].x = x;
@@ -291,7 +385,8 @@ class simplePlot {
       linedash: [], 
       linecolor: '#000', 
       linewidth: 1, 
-      is_step: false
+      is_step: false,
+      show_in_legend: true
     }
 
     Reflect.ownKeys(user_config).forEach(function(key){
@@ -304,6 +399,7 @@ class simplePlot {
       this.data[label].linecolor = config.linecolor;
       this.data[label].linewidth = config.linewidth;
       this.data[label].is_step = config.is_step;
+      this.data[label].show_in_legend = config.show_in_legend;
     }
     this.data[label].x = x;
     this.data[label].y = y;
@@ -352,23 +448,6 @@ class simplePlot {
       this.range_x = rX;
       this.xScale.domain(rX);
 
-      if (this.range_y !== null && this.range_stack_i < this.range_y.length-1)
-      {
-        this.range_stack_x = this.range_stack_x.slice(0,this.range_stack_i+1);
-        this.range_stack_y = this.range_stack_y.slice(0,this.range_stack_i+1);
-      }
-
-      if (this.range_x !== null)
-        this.range_stack_x.push(this.range_x.slice());
-      else
-        this.range_stack_x.push(null);
-      if (this.range_y !== null)
-        this.range_stack_y.push(this.range_y.slice());
-      else
-        this.range_stack_y.push(null);
-
-      this.range_stack_i++;
-
       this.draw();
     }
   }
@@ -381,25 +460,9 @@ class simplePlot {
       this.range_y = rY;
       this.yScale.domain(rY);
 
-      if (this.range_x !== null || this.range_stack_i < this.range_y.length-1)
-      {
-        this.range_stack_x = this.range_stack_x.slice(0,this.range_stack_i+1);
-        this.range_stack_y = this.range_stack_y.slice(0,this.range_stack_i+1);
-      }
-
-      if (this.range_x !== null)
-        this.range_stack_x.push(this.range_x.slice());
-      else
-        this.range_stack_x.push(null);
-      if (this.range_y !== null)
-        this.range_stack_y.push(this.range_y.slice());
-      else
-        this.range_stack_y.push(null);
-
-      this.range_stack_i++;
+      this.draw();
     }
 
-    this.draw();
   }
 
   double_click(self,e) {
@@ -423,18 +486,21 @@ class simplePlot {
         return;
     }
 
-    console.log(self.range_stack_i,e);
-
     self.range_stack_i = self.range_stack_i + direction;  
     let rX = self.range_stack_x[self.range_stack_i];
     let rY = self.range_stack_y[self.range_stack_i];
 
-    this.range_x = rX;
-    this.xScale.domain(rX);
-    this.range_y = rY;
-    this.yScale.domain(rY);
+    self.range_x = rX;
+    self.xScale.domain(rX);
+    self.range_y = rY;
+    self.yScale.domain(rY);
 
-    this.draw();
+    self.draw();
+    if (direction == -1 && self.number_of_outzooms == 1)
+      self.blink(self,+1);
+    else
+      ++self.number_of_outzooms;
+
 
   }
 
@@ -543,7 +609,8 @@ class simplePlot {
     this.draw();
   }
 
-  draw() {
+  draw()
+  {
     let ctx = this.ctx;
     let xS = this.xScale;
     let yS = this.yScale;
@@ -831,69 +898,79 @@ class simplePlot {
 
     if (this.draw_legend) {
       let l_offset_x = mrgn + 5;
-      let N_curves = Reflect.ownKeys(this.data).length + Reflect.ownKeys(this.scatterData).length;
+      let N_curves = Reflect.ownKeys(this.data).filter(x=>this.data[x].show_in_legend).length + 
+                     Reflect.ownKeys(this.scatterData).filter(x=>this.scatterData[x].show_in_legend).length;
       let l_h = N_curves * (fH * 1.1);
       let l_offset_y = h - mrgn - l_h;
       let i = 0;
       ctx.textAlign = 'left';
-      for (var label in this.data) {
 
-        let lw = this.data[label].linewidth;
-        let ld = this.data[label].linedash;
-        let lc = this.data[label].linecolor;
-        ctx.lineWidth = lw;
-        ctx.setLineDash(ld);
-        ctx.strokeStyle = lc;
-        ctx.beginPath();
-        ctx.moveTo(l_offset_x, l_offset_y + fH / 2 + i * fH * 1.1);
-        ctx.lineTo(l_offset_x + 20, l_offset_y + fH / 2 + i * fH * 1.1);
-        ctx.stroke();
+      for (var label in this.data)
+      {
 
-        ctx.strokeStyle = '#000';
-        ctx.fillStyle = '#000';
-        ctx.setLineDash([]);
-        ctx.lineWidth = 1;
-        ctx.fillText(label, l_offset_x + 25, l_offset_y + (i + 1) * fH * 1.1 - fH / 3);
-        ++i;
+        if (this.data[label].show_in_legend)
+        {
+          let lw = this.data[label].linewidth;
+          let ld = this.data[label].linedash;
+          let lc = this.data[label].linecolor;
+          ctx.lineWidth = lw;
+          ctx.setLineDash(ld);
+          ctx.strokeStyle = lc;
+          ctx.beginPath();
+          ctx.moveTo(l_offset_x, l_offset_y + fH / 2 + i * fH * 1.1);
+          ctx.lineTo(l_offset_x + 20, l_offset_y + fH / 2 + i * fH * 1.1);
+          ctx.stroke();
+
+          ctx.strokeStyle = '#000';
+          ctx.fillStyle = '#000';
+          ctx.setLineDash([]);
+          ctx.lineWidth = 1;
+          ctx.fillText(label, l_offset_x + 25, l_offset_y + (i + 1) * fH * 1.1 - fH / 3);
+          ++i;
+        }
       }
-      for (var label in this.scatterData) {
 
-        let m = this.scatterData[label].marker;
-        let mr = this.scatterData[label].markerradius;
-        let md = 2 * mr;
-        let mc = this.scatterData[label].markercolor;
-        let mew = this.scatterData[label].markeredgewidth;
-        let mec = this.scatterData[label].markeredgecolor;
+      for (var label in this.scatterData)
+      {
+        if (this.scatterData[label].show_in_legend)
+        {
+          let m = this.scatterData[label].marker;
+          let mr = this.scatterData[label].markerradius;
+          let md = 2 * mr;
+          let mc = this.scatterData[label].markercolor;
+          let mew = this.scatterData[label].markeredgewidth;
+          let mec = this.scatterData[label].markeredgecolor;
 
 
-        ctx.lineWidth = mew;
-        ctx.strokeStyle = mec;
-        ctx.fillStyle = mc;
+          ctx.lineWidth = mew;
+          ctx.strokeStyle = mec;
+          ctx.fillStyle = mc;
 
-          let _x = l_offset_x+10;
-          let _y = l_offset_y + fH / 2 + i * fH * 1.1;
+            let _x = l_offset_x+10;
+            let _y = l_offset_y + fH / 2 + i * fH * 1.1;
 
-          if (m == 's') {
-            ctx.fillRect(_x - mr, _y - mr, md, md);
-            ctx.beginPath();
-            ctx.rect(_x - mr, _y - mr, md, md);
-            ctx.stroke();
-          }
-          else //if (m == 'o')
-          {
-            ctx.beginPath();
-            ctx.moveTo(_x + mr, _y);
-            ctx.arc(_x, _y, mr, 0, 2 * Math.PI);
-            ctx.fill();
-            ctx.stroke();
-          }
+            if (m == 's') {
+              ctx.fillRect(_x - mr, _y - mr, md, md);
+              ctx.beginPath();
+              ctx.rect(_x - mr, _y - mr, md, md);
+              ctx.stroke();
+            }
+            else //if (m == 'o')
+            {
+              ctx.beginPath();
+              ctx.moveTo(_x + mr, _y);
+              ctx.arc(_x, _y, mr, 0, 2 * Math.PI);
+              ctx.fill();
+              ctx.stroke();
+            }
 
-        ctx.strokeStyle = '#000';
-        ctx.fillStyle = '#000';
-        ctx.setLineDash([]);
-        ctx.lineWidth = 1;
-        ctx.fillText(label, l_offset_x + 25, l_offset_y + (i + 1) * fH * 1.1 - fH / 3);
-        ++i;
+          ctx.strokeStyle = '#000';
+          ctx.fillStyle = '#000';
+          ctx.setLineDash([]);
+          ctx.lineWidth = 1;
+          ctx.fillText(label, l_offset_x + 25, l_offset_y + (i + 1) * fH * 1.1 - fH / 3);
+          ++i;
+        }
       }
     }
   }
