@@ -52,6 +52,10 @@ class simplePlot {
     this.range_stack_y = [this.range_y];
     this.range_stack_i = 0;
 
+    this.legend_bg_color = 'rgba(255,255,255,1)';
+    this.legend_dx = 0;
+    this.legend_dy = 2;
+
     if (this.xScaleType == 'log')
       this.xScale = d3.scaleLog().range([this.margin, this.w - this.margin]);
     else
@@ -111,6 +115,7 @@ class simplePlot {
     other.cousin_plots.push(this);
   }
 
+  // Internally used function to provide interactivity
   mousemove(self,e)
   {
     self.highlight.X.canv = e.offsetX;
@@ -127,6 +132,7 @@ class simplePlot {
                              );
   }
 
+  // Internally used function to provide interactivity
   set_highlight_from_data(self,x,y)
   {
     self.highlight.X.data = x;
@@ -136,6 +142,7 @@ class simplePlot {
     self.draw();
   }
 
+  // Internally used function to provide interactivity
   highlight_out(self)
   {
     self.highlight.X.data = null;
@@ -146,6 +153,7 @@ class simplePlot {
     self.draw();
   }
 
+  // Internally used function to provide interactivity
   highlight_out_global(self)
   {
     self.highlight_out(self);
@@ -240,6 +248,45 @@ class simplePlot {
         if (self.allow_zoom_x)
           self.xlim([xmin,xmax]);
           */
+
+        self.zoom_transition(self,xmin,xmax,ymin,ymax,function(){
+          // if anything actually changed
+          if ((self.allow_zoom_x && xmin != xmax) || (self.allow_zoom_y && ymin != ymax))
+          {
+
+            if (self.range_y !== null && self.range_stack_i < self.range_y.length-1)
+            {
+              self.range_stack_x = self.range_stack_x.slice(0,self.range_stack_i+1);
+              self.range_stack_y = self.range_stack_y.slice(0,self.range_stack_i+1);
+            }
+
+            if (self.range_x !== null)
+              self.range_stack_x.push(self.range_x.slice());
+            else
+              self.range_stack_x.push(null);
+
+            if (self.range_y !== null)
+              self.range_stack_y.push(self.range_y.slice());
+            else
+              self.range_stack_y.push(null);
+
+            self.range_stack_i++;
+
+            if (is_first_zoom && self.show_zoom_helpers)
+            {
+              self.blink(self,-1);
+            }
+            ++self.number_of_outzooms;
+          }
+        });
+
+    }
+
+
+  }
+
+  zoom_transition(self,xmin,xmax,ymin,ymax,callback)
+  {
       let duration = 200;
       let ease = d3.easeCubicInOut;
       let time = d3.scaleLinear().domain([0,duration]).range([0,1]);
@@ -270,41 +317,9 @@ class simplePlot {
         if (elapsed == duration)
         {          
           t.stop();
-
-          // if anything actually changed
-          if ((self.allow_zoom_x && xmin != xmax) || (self.allow_zoom_y && ymin != ymax))
-          {
-
-            if (self.range_y !== null && self.range_stack_i < self.range_y.length-1)
-            {
-              self.range_stack_x = self.range_stack_x.slice(0,self.range_stack_i+1);
-              self.range_stack_y = self.range_stack_y.slice(0,self.range_stack_i+1);
-            }
-
-            if (self.range_x !== null)
-              self.range_stack_x.push(self.range_x.slice());
-            else
-              self.range_stack_x.push(null);
-
-            if (self.range_y !== null)
-              self.range_stack_y.push(self.range_y.slice());
-            else
-              self.range_stack_y.push(null);
-
-            self.range_stack_i++;
-
-            if (is_first_zoom && self.show_zoom_helpers)
-            {
-              self.blink(self,-1);
-            }
-            ++self.number_of_outzooms;
-          }
+          callback();
         }
       });
-
-    }
-
-
   }
 
   blink(self,direction)
@@ -355,6 +370,8 @@ class simplePlot {
 
       return true;
     }
+
+    return false;
   }
 
   scatter(label, x, y, user_config={})
@@ -525,16 +542,14 @@ class simplePlot {
     let rX = self.range_stack_x[self.range_stack_i];
     let rY = self.range_stack_y[self.range_stack_i];
 
-    self.range_x = rX;
-    self.xScale.domain(rX);
-    self.range_y = rY;
-    self.yScale.domain(rY);
+    self.zoom_transition(self,rX[0],rX[1],rY[0],rY[1],function() {
 
-    self.draw();
-    if (direction == -1 && self.number_of_outzooms == 1)
-      self.blink(self,+1);
-    else
-      ++self.number_of_outzooms;
+        self.draw();
+        if (direction == -1 && self.number_of_outzooms == 1)
+          self.blink(self,+1);
+        else
+          ++self.number_of_outzooms;
+    });
 
 
   }
@@ -603,8 +618,40 @@ class simplePlot {
     this.draw();
   }
 
-  legend(on = true) {
+  legend(on=true,user_config={}) {
+
+    let config = {
+      position : 'lower left',
+      background_color : 'rgba(255,255,255,0.2)'
+    };
+
+    Reflect.ownKeys(user_config).forEach(function(key){
+      config[key] = user_config[key];
+    });
+
     this.draw_legend = on;
+    this.legend_bg_color = config.background_color;
+    this.legend_dx = 0;
+    this.legend_dy = 2;
+    let words = config.position.split(" ");
+    if (words.includes("left")) {
+      this.legend_dx = 0;
+    }
+    if (words.includes("center")) {
+      this.legend_dx = 1;
+    }
+    if (words.includes("right")) {
+      this.legend_dx = 2;
+    }
+    if (words.includes("top")) {
+      this.legend_dy = 0;
+    }
+    if (words.includes("middle")) {
+      this.legend_dy = 1;
+    }
+    if (words.includes("bottom")) {
+      this.legend_dy = 2;
+    }
     this.draw();
   }
 

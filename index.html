@@ -16,7 +16,6 @@ var canvas = d3.select('#container')
 
 var ctx = canvas.node().getContext('2d');
 ctx.scale(1,1);
-var pl = new simplePlot(ctx, width, height, {margin: 20, fontsize:12, allow_zoom_y:false});
 
 if (window.devicePixelRatio){
     canvas
@@ -27,6 +26,8 @@ if (window.devicePixelRatio){
 
     ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
 }
+
+var pl = new simplePlot(ctx, width, height, {margin: 20, fontsize:12, allow_zoom_y:false});
 
 var N = 1001;
 var x = d3.range(10,N).map(i => i/100);
